@@ -230,3 +230,16 @@ class TestHtmlSpan(unittest.TestCase):
         tokens = span_token.tokenize_inner('< a><\nfoo><bar/ >\n<foo bar=baz\nbim!bop />')
         for t in tokens:
             self.assertNotIsInstance(t, span_token.HtmlSpan)
+
+
+class TestRemoveToken(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(span_token.reset_tokens)
+
+    def test_remove_span_from_processing(self):
+        self.assertEqual(len(span_token._token_types), len(span_token.__all__))
+        span_token.remove_token(span_token.RawText)
+        self.assertEqual(len(span_token._token_types), len(span_token.__all__) - 1)
+        # Check that trying to remove twice still works
+        span_token.remove_token(span_token.RawText)
+        self.assertEqual(len(span_token._token_types), len(span_token.__all__) - 1)
