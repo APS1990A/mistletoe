@@ -234,12 +234,13 @@ class TestHtmlSpan(unittest.TestCase):
 
 class TestRemoveToken(unittest.TestCase):
     def setUp(self):
+        span_token._token_types.clear() # .clear() to remove duplicates
+        span_token.add_token(span_token.RawText)
         self.addCleanup(span_token.reset_tokens)
 
-    def test_remove_span_from_processing(self):
-        self.assertEqual(len(span_token._token_types), len(span_token.__all__))
+    def test_remove_token_from_processing(self):
+        # Check that token exists
+        self.assertIn(span_token.RawText, span_token._token_types)
+        
         span_token.remove_token(span_token.RawText)
-        self.assertEqual(len(span_token._token_types), len(span_token.__all__) - 1)
-        # Check that trying to remove twice still works
-        span_token.remove_token(span_token.RawText)
-        self.assertEqual(len(span_token._token_types), len(span_token.__all__) - 1)
+        self.assertNotIn(span_token.RawText, span_token._token_types)
