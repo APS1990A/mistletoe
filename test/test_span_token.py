@@ -234,8 +234,6 @@ class TestHtmlSpan(unittest.TestCase):
 
 class TestRemoveToken(unittest.TestCase):
     def setUp(self):
-        span_token._token_types.clear() # .clear() to remove duplicates
-        span_token.add_token(span_token.RawText)
         self.addCleanup(span_token.reset_tokens)
 
     def test_remove_token_from_processing(self):
