@@ -242,3 +242,9 @@ class TestRemoveToken(unittest.TestCase):
         
         span_token.remove_token(span_token.RawText)
         self.assertNotIn(span_token.RawText, span_token._token_types)
+
+        # Check second removal does not raise error (pull request #281 issue #262)
+        try:
+            span_token.remove_token(span_token.RawText)
+        except ValueError:
+            self.fail("Idempotent removal failed")
