@@ -725,6 +725,7 @@ class TestFileWrapper(unittest.TestCase):
         wrapper.reset()
         assert next(wrapper) == "somewhat interesting\n"
 
+
 class TestRemoveToken(unittest.TestCase):
     def setUp(self):
         self.addCleanup(block_token.reset_tokens)
