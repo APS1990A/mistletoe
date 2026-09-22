@@ -3,17 +3,19 @@ Abstract syntax tree renderer for mistletoe.
 """
 
 import json
+from mistletoe import block_token
 from mistletoe.base_renderer import BaseRenderer
+from mistletoe.block_token import Paragraph, ThematicBreak
+from mistletoe.token import Token
 
 
 def determine_list_type(token, node):
     if token.children:
         leader: str = getattr(token.children[0], "leader").replace(".", "")
         if leader.isdecimal():
-            node['attrs'] = {}
-            node['attrs']['order'] = leader
+            node["attrs"] = {}
+            node["attrs"]["order"] = leader
             return "orderedList"
-        
 
     return "bulletList"
 
@@ -26,12 +28,21 @@ ADF_TYPE = {
     "Emphasis": "em",
     "Strong": "strong",
     "Strikethrough": "strike",
-    "LineBreak": None,
+    "LineBreak": "hardBreak",
     "Link": "link",
     "InlineCode": "code",
     "CodeFence": "codeBlock",
     "List": determine_list_type,
     "ListItem": "listItem",
+    "Image": None,  # ADF media tags require a page ID to generate its media ID.
+    # Without it, they do not display properly.
+    "Table": "table",
+    "TableRow": "tableRow",
+    "TableCell": lambda token, _: (
+        "tableHeader" if hasattr(token, "is_header") else "tableCell"
+    ),
+    "SetextHeading": "heading",
+    "ThematicBreak": "rule"
 }
 
 ADF_ATTRS = {
@@ -48,7 +59,7 @@ class AdfRenderer(BaseRenderer):
         """
         Returns the string representation of the ADF.
 
-        Overrides super().render. Delegates the logic to get_adf       
+        Overrides super().render. Delegates the logic to get_adf
         """
         return json.dumps(get_adt(token), indent=2) + "\n"
 
@@ -72,7 +83,7 @@ def get_adt(token, marks=None):
     #   [1]: https://docs.python.org/3/whatsNonenew/3.6.html
     #   [2]: https://github.com/syntax-tree/mdast
     node["type"] = (
-       (ADF_TYPE[token.__class__.__name__])(token, node)
+        (ADF_TYPE[token.__class__.__name__])(token, node)
         if callable(ADF_TYPE[token.__class__.__name__])
         else ADF_TYPE[token.__class__.__name__]
     )
@@ -87,7 +98,7 @@ def get_adt(token, marks=None):
             if ADF_ATTRS.get(attrname, None) is not None:
                 node["attrs"] = {} if node.get("attrs", None) is None else node["attrs"]
                 node["attrs"][ADF_ATTRS[attrname]] = getattr(token, attrname)
-        if node["type"] in MARK_VALUES:
+        if node["type"] in MARK_VALUES:  
             marks = [] if marks is None else marks
             if node.get("attrs", None) is not None:
                 if len(node["attrs"]) == 0:
@@ -95,20 +106,24 @@ def get_adt(token, marks=None):
             marks.append(node)
             return get_adt(token.children[0], marks)
         if "header" in vars(token):
-            node["header"] = get_adt(getattr(token, "header"))
-        if token.children is not None:
-            node["content"] = [
-                get_adt(child)
-                for child in token.children
-                if ADF_TYPE[child.__class__.__name__]
-            ]
-    else:
-        if token.children is not None:
-            return [
-                get_adt(child)
-                for child in token.children
-                if ADF_TYPE[child.__class__.__name__]
-            ]
+            header_row_token = getattr(token, "header")
+            for cell_token in header_row_token.children:
+                cell_token.is_header = True
+
+            token.children.insert(0, header_row_token)
+
+    if token.children is not None:
+        if token.__class__.__name__ == "SetextHeading":
+            get_adt(ThematicBreak("---"))
+        if node["type"] == "tableCell" or node["type"] == "tableHeader":
+            paragraph_token = block_token.Paragraph([])
+            paragraph_token.children = token.children
+            token.children = [paragraph_token]
+        node["content"] = ([
+            get_adt(child)
+            for child in token.children
+            if ADF_TYPE[child.__class__.__name__]
+        ])
 
     if node.get("attrs", None) is not None:
         if len(node["attrs"]) == 0:
