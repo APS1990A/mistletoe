@@ -5,7 +5,7 @@ Abstract syntax tree renderer for mistletoe.
 import json
 from mistletoe import block_token
 from mistletoe.base_renderer import BaseRenderer
-from mistletoe.block_token import Paragraph, ThematicBreak
+from mistletoe.block_token import BlockToken, Paragraph, ThematicBreak
 from mistletoe.token import Token
 
 
@@ -32,6 +32,7 @@ ADF_TYPE = {
     "Link": "link",
     "InlineCode": "code",
     "CodeFence": "codeBlock",
+    "BlockCode": "codeBlock",
     "List": determine_list_type,
     "ListItem": "listItem",
     "Image": None,  # ADF media tags require a page ID to generate its media ID.
@@ -42,7 +43,10 @@ ADF_TYPE = {
         "tableHeader" if hasattr(token, "is_header") else "tableCell"
     ),
     "SetextHeading": "heading",
-    "ThematicBreak": "rule"
+    "ThematicBreak": "rule",
+    "Quote": "blockquote",
+    "AutoLink": "link",
+    "EscapeSequence": None
 }
 
 ADF_ATTRS = {
@@ -52,6 +56,7 @@ ADF_ATTRS = {
     "language": "language",
 }
 MARK_VALUES = ("em", "strong", "strike", "link", "code")
+TEXT_TYPE = ("text")
 
 
 class AdfRenderer(BaseRenderer):
@@ -67,7 +72,7 @@ class AdfRenderer(BaseRenderer):
         return lambda token: ""
 
 
-def get_adt(token, marks=None):
+def get_adt(token, marks=None, blockquotes=False):
     """
     Recursively unrolls token attributes into dictionaries (token.children
     into lists).
@@ -88,11 +93,11 @@ def get_adt(token, marks=None):
         else ADF_TYPE[token.__class__.__name__]
     )
 
-    if node["type"] is not None:
+    if node["type"] is not None and not blockquotes:
         if node["type"] == "doc":
             node["version"] = 1
 
-        if "content" in vars(token):
+        if "content" in vars(token) and node["type"] in TEXT_TYPE:
             node["text"] = getattr(token, "content").replace("\n", "")
         for attrname in token.repr_attributes:
             if ADF_ATTRS.get(attrname, None) is not None:
@@ -104,7 +109,7 @@ def get_adt(token, marks=None):
                 if len(node["attrs"]) == 0:
                     del node["attrs"]
             marks.append(node)
-            return get_adt(token.children[0], marks)
+            return get_adt(token.children[0], marks, blockquotes = node["type"] == "blockquote")
         if "header" in vars(token):
             header_row_token = getattr(token, "header")
             for cell_token in header_row_token.children:
@@ -120,7 +125,7 @@ def get_adt(token, marks=None):
             paragraph_token.children = token.children
             token.children = [paragraph_token]
         node["content"] = ([
-            get_adt(child)
+            get_adt(child, marks, blockquotes = node["type"] == "blockquote")
             for child in token.children
             if ADF_TYPE[child.__class__.__name__]
         ])
@@ -128,6 +133,9 @@ def get_adt(token, marks=None):
     if node.get("attrs", None) is not None:
         if len(node["attrs"]) == 0:
             del node["attrs"]
-    if marks is not None and len(marks) > 0:
+    if node.get("type", None) is None or (node.get("type", None) == "blockquote" and blockquotes):
+            node = node["content"][0]
+    if marks is not None and len(marks) > 0 and not isinstance(token, BlockToken):
         node["marks"] = marks
+    
     return node
