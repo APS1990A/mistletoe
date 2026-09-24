@@ -14,9 +14,9 @@ def determine_list_type(token, node):
         leader: str = getattr(token.children[0], "leader").replace(".", "")
         if leader.isdecimal():
             node["attrs"] = {}
-            node["attrs"]["order"] = leader
+            node["attrs"]["order"] = int(leader)
             return "orderedList"
-
+   
     return "bulletList"
 
 
@@ -66,13 +66,23 @@ class AdfRenderer(BaseRenderer):
 
         Overrides super().render. Delegates the logic to get_adf
         """
-        return json.dumps(get_adt(token), indent=2) + "\n"
+        return json.dumps(get_adf(token), indent=2) + "\n"
 
     def __getattr__(self, name):
         return lambda token: ""
 
 
-def get_adt(token, marks=None, blockquotes=False):
+def handle_table(token):   
+    paragraph_token = block_token.Paragraph([])
+    paragraph_token.children = token.children
+    return [paragraph_token]
+
+def handle_marks(token, node, marks):
+    marks = [] if marks is None else marks
+    marks.append(node)
+    return get_adf(token.children[0], marks, blockquotes = node["type"] == "blockquote")
+
+def get_adf(token, marks=None, blockquotes=False):
     """
     Recursively unrolls token attributes into dictionaries (token.children
     into lists).
@@ -104,12 +114,10 @@ def get_adt(token, marks=None, blockquotes=False):
                 node["attrs"] = {} if node.get("attrs", None) is None else node["attrs"]
                 node["attrs"][ADF_ATTRS[attrname]] = getattr(token, attrname)
         if node["type"] in MARK_VALUES:  
-            marks = [] if marks is None else marks
             if node.get("attrs", None) is not None:
                 if len(node["attrs"]) == 0:
                     del node["attrs"]
-            marks.append(node)
-            return get_adt(token.children[0], marks, blockquotes = node["type"] == "blockquote")
+            return handle_marks(token, node, marks)
         if "header" in vars(token):
             header_row_token = getattr(token, "header")
             for cell_token in header_row_token.children:
@@ -119,13 +127,11 @@ def get_adt(token, marks=None, blockquotes=False):
 
     if token.children is not None:
         if token.__class__.__name__ == "SetextHeading":
-            get_adt(ThematicBreak("---"))
+            get_adf(ThematicBreak("---"))
         if node["type"] == "tableCell" or node["type"] == "tableHeader":
-            paragraph_token = block_token.Paragraph([])
-            paragraph_token.children = token.children
-            token.children = [paragraph_token]
+            token.children = handle_table(token)
         node["content"] = ([
-            get_adt(child, marks, blockquotes = node["type"] == "blockquote")
+            get_adf(child, marks, blockquotes = node["type"] == "blockquote")
             for child in token.children
             if ADF_TYPE[child.__class__.__name__]
         ])
