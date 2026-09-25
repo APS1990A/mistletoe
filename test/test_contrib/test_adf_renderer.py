@@ -1,11 +1,19 @@
-from unittest import TestCase
-
 from mistletoe import token
 from mistletoe.block_token import Document
 from mistletoe.contrib import adf_renderer
+from test.base_test import BaseRendererTest
+
+filesBasedTest = BaseRendererTest.filesBasedTest
 
 
-class TestAdfRenderer(TestCase):
+class TestAdfRenderer(BaseRendererTest):
+    def setUp(self):
+        super().setUp()
+        token._root_node = Document([])
+        self.renderer = adf_renderer.AdfRenderer()
+        self.renderer.__enter__()
+        self.addCleanup(self.renderer.__exit__, None, None, None)
+        self.sampleOutputExtension = "adf.json"
 
     def test_heading(self):
         doc = Document(
@@ -226,3 +234,15 @@ class TestAdfRenderer(TestCase):
         expected = {"type": "doc", "version": 1, "content": [{"type": "rule"}]}
         adf = adf_renderer.get_adf(doc)
         self.assertDictEqual(adf, expected)
+
+    @filesBasedTest
+    def test_render__basic_blocks(self):
+        pass
+
+    # @filesBasedTest
+    # def test_render__lists(self):
+    #     pass
+
+    # @filesBasedTest
+    # def test_render__quotes(self):
+    #     pass
