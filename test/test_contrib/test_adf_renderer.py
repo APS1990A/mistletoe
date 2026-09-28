@@ -79,11 +79,10 @@ class TestAdfRenderer(BaseRendererTest):
                 },
             ],
         }
-        print(type(adf))
+
         self.assertDictEqual(expected, adf)
 
     def test_table(self):
-
         doc = Document(
             [
                 "| Left aligned | Center aligned | Right aligned |\n",
