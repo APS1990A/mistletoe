@@ -123,16 +123,13 @@ def get_adf(token, marks=None, blockquotes=False):
     Recursively unrolls token attributes into dictionaries (token.children
     into lists).
 
+    Atlassian Document Format (ADF) defined here:
+    developer.atlassian.com/cloud/jira/platform/apis/document/structure/
+
     Returns:
         a dictionary of token's attributes.
     """
     node = {}
-    # Python 3.6 uses [ordered dicts] [1].
-    # Put in 'type' entry first to make the final tree format somewhat
-    # similar to [MDAST] [2].
-    #
-    #   [1]: https://docs.python.org/3/whatsNonenew/3.6.html
-    #   [2]: https://github.com/syntax-tree/mdast
     node["type"] = (
         (ADF_TYPE[token.__class__.__name__])(token, node)
         if callable(ADF_TYPE[token.__class__.__name__])
