@@ -5,7 +5,7 @@ Abstract syntax tree renderer for mistletoe.
 import json
 from mistletoe import block_token
 from mistletoe.base_renderer import BaseRenderer
-from mistletoe.block_token import BlockToken, ThematicBreak
+from mistletoe.block_token import BlockToken, List, ThematicBreak
 
 
 def determine_list_type(token, _):
