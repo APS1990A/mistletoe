@@ -90,11 +90,32 @@ def handle_children(token, node, marks, parent_list):
         get_adf(ThematicBreak("---"))
     if node["type"] == "tableCell" or node["type"] == "tableHeader":
         token.children = handle_table(token)
-    node["content"] = [
-        get_adf(child, marks, blockquotes=node["type"] == "blockquote")
-        for child in token.children
-        if ADF_TYPE[child.__class__.__name__]
-    ]
+    for child in token.children:
+        if ADF_TYPE[child.__class__.__name__]:
+            node["content"] = (
+                [] if node.get("content", None) is None else node["content"]
+            )
+            node["content"].append(
+                get_adf(
+                    child,
+                    marks,
+                    blockquotes=node["type"] == "blockquote",
+                    parent_list=parent_list,
+                )
+            )
+
+    if (
+        parent_list is not None
+        and parent_list[0].loose
+        and node["type"] == "paragraph"
+        and token not in parent_list[0].children
+        and get_adf(parent_list[0].children[-1].children[0]) != node
+    ):
+        node["content"] = [] if node.get("content", None) is None else node["content"]
+        parent_list[1]["content"].append({"type": "paragraph", "content": []})
+
+    if parent_list is not None and node["type"] == "blockquote":
+        node["type"] = get_adf(token.children[0], marks, parent_list=parent_list)
 
 
 def process_node(token, node, marks, parent_list):
