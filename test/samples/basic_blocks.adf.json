@@ -345,7 +345,7 @@
       "content": [
         {
           "type": "text",
-          "text": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World!\");\n    }\n}\n"
+          "text": "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World!\");\n    }\n}"
         }
       ]
     },
@@ -366,7 +366,7 @@
       "content": [
         {
           "type": "text",
-          "text": "2020-07-05 10:20:55 ...\n2020-07-05 10:20:56 ...\n    ...\n2020-07-05 10:21:03 ...\n"
+          "text": "2020-07-05 10:20:55 ...\n2020-07-05 10:20:56 ...\n    ...\n2020-07-05 10:21:03 ..."
         }
       ]
     }
