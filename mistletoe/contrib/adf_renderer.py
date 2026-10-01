@@ -8,15 +8,12 @@ from mistletoe.base_renderer import BaseRenderer
 from mistletoe.block_token import BlockToken, ThematicBreak
 
 
-def determine_list_type(token, node):
-    if token.children:
-        leader: str = getattr(token.children[0], "leader").replace(".", "")
-        if leader.isdecimal():
-            node["attrs"] = {}
-            node["attrs"]["order"] = int(leader)
+def determine_list_type(token, _):
+    if isinstance(token, List):
+        if token.start:
             return "orderedList"
-
-    return "bulletList"
+        else:
+            return "bulletList"
 
 
 ADF_TYPE = {
