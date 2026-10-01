@@ -102,7 +102,8 @@ def process_node(token, node, marks, parent_list):
         node["version"] = 1
 
     if "content" in vars(token) and node["type"] in TEXT_TYPE:
-        node["text"] = getattr(token, "content")
+        node["text"] = getattr(token, "content").rstrip()
+
     for attrname in token.repr_attributes:
         if ADF_ATTRS.get(attrname, None) is not None:
             node["attrs"] = {} if node.get("attrs", None) is None else node["attrs"]
