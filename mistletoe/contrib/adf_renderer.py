@@ -8,14 +8,25 @@ from mistletoe.base_renderer import BaseRenderer
 from mistletoe.block_token import BlockToken, List, ThematicBreak
 
 
-def determine_list_type(token, _):
+def determine_list_type(token):
     if isinstance(token, List):
-        if token.start:
-            return "orderedList"
-        else:
-            return "bulletList"
+        return "orderedList" if getattr(token, "start") else "bulletList"
+    return None
 
 
+def determine_line_break(token):
+    return "paragraph" if getattr(token, "soft") else "hardBreak"
+
+
+def determine_table_cell(token):
+    return "tableHeader" if hasattr(token, "is_header") else "tableCell"
+
+
+"""
+    Determine the ADF type from the class type from AST.
+    Some return functions to further determine which ADF
+    type to return based on attributes of the AST token.
+"""
 ADF_TYPE = {
     "Document": "doc",
     "Heading": "heading",
@@ -24,7 +35,7 @@ ADF_TYPE = {
     "Emphasis": "em",
     "Strong": "strong",
     "Strikethrough": "strike",
-    "LineBreak": "hardBreak",
+    "LineBreak": determine_line_break,
     "Link": "link",
     "InlineCode": "code",
     "CodeFence": "codeBlock",
@@ -35,9 +46,7 @@ ADF_TYPE = {
     # Without it, they do not display properly.
     "Table": "table",
     "TableRow": "tableRow",
-    "TableCell": lambda token, _: (
-        "tableHeader" if hasattr(token, "is_header") else "tableCell"
-    ),
+    "TableCell": determine_table_cell,
     "SetextHeading": "heading",
     "ThematicBreak": "rule",
     "Quote": "blockquote",
