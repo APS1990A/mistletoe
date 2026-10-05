@@ -148,27 +148,33 @@ def handle_children(token, node, marks, parent_list):
             node["content"] = (
                 [] if node.get("content", None) is None else node["content"]
             )
-            node["content"].append(
-                get_adf(
-                    child,
-                    marks,
-                    blockquotes=node["type"] == "blockquote",
-                    parent_list=parent_list,
-                )
+            ret = get_adf(
+                child,
+                marks,
+                blockquotes=node["type"] == "blockquote",
+                parent_list=parent_list,
             )
+            if ret["type"] is not None:
+                node["content"].append(ret)
 
-    if (
-        parent_list is not None
-        and parent_list[0].loose
-        and node["type"] == "paragraph"
-        and token not in parent_list[0].children
-        and get_adf(parent_list[0].children[-1].children[0]) != node
-    ):
-        node["content"] = [] if node.get("content", None) is None else node["content"]
-        parent_list[1]["content"].append({"type": "paragraph", "content": []})
+            # TODO find out way to remove or prevent the last empty paragraph from being
+            #      added to the children/content lists. Current design adds extra empty
+            #      paragraph at the end of nested loose lists.
+            if (
+                getattr(token, "loose", False)
+                and isinstance(token, ListItem)
+                and not isinstance(token.children[-1], ListItem)
+            ):
+                # For loose tables to render similar to markdown, we need to add
+                # empty paragraphs at the end of a parent_list[0] content/children
+                # Make a note that we have seen a paragraph node containing the text
+                # This might need to be supported by other block token types as well,
+                node["content"].append({"type": "paragraph", "content": []})
 
     if parent_list is not None and node["type"] == "blockquote":
-        node["type"] = get_adf(token.children[0], marks, parent_list=parent_list)
+        # blockquote nodes do not render inside of lists, so use its child
+        # instead.
+        node = get_adf(token.children[0], marks, parent_list=parent_list)
 
 
 def process_node(token, node, marks, parent_list):

@@ -34,9 +34,6 @@
           "text": "Line"
         },
         {
-          "type": "hardBreak"
-        },
-        {
           "type": "text",
           "text": "continues - this is \"soft break\"."
         }
