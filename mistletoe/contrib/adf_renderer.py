@@ -142,6 +142,7 @@ def handle_children(token, node, marks, parent_list):
 
     if node["type"] == "tableCell" or node["type"] == "tableHeader":
         token.children = handle_table(token)
+
     for child in token.children:
         if ADF_TYPE[child.__class__.__name__]:
             node["content"] = (
@@ -199,6 +200,9 @@ def process_node(token, node, marks, parent_list):
 
     if token.__class__.__name__ == "SetextHeading":
         get_adf(ThematicBreak("---"))
+
+
+def post_process_node(node, token, marks, blockquotes):
     if node.get("type", None) is None or (
         node.get("type", None) == "blockquote" and blockquotes
     ):
@@ -209,6 +213,7 @@ def process_node(token, node, marks, parent_list):
             node = node.get("content", node)[0]
     if marks is not None and len(marks) > 0 and not isinstance(token, BlockToken):
         node["marks"] = marks
+
 
 def get_adf(token, marks=None, blockquotes=False, parent_list=None):
     """
