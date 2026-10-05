@@ -5,7 +5,7 @@ Abstract syntax tree renderer for mistletoe.
 import json
 from mistletoe import block_token
 from mistletoe.base_renderer import BaseRenderer
-from mistletoe.block_token import BlockToken, List, ThematicBreak
+from mistletoe.block_token import BlockToken, List, ListItem, ThematicBreak
 
 
 def determine_list_type(token):
@@ -15,7 +15,7 @@ def determine_list_type(token):
 
 
 def determine_line_break(token):
-    return "paragraph" if getattr(token, "soft") else "hardBreak"
+    return None if getattr(token, "soft") else "hardBreak"
 
 
 def determine_table_cell(token):
@@ -54,13 +54,22 @@ ADF_TYPE = {
     "EscapeSequence": None,
 }
 
+"""
+AST attributes and the corresponding ADF attribute.
+"""
 ADF_ATTRS = {
     "level": "level",
     "target": "href",
     "title": "title",
     "language": "language",
 }
+
+
+"""
+All mark nodes in ADF.
+"""
 MARK_VALUES = ("em", "strong", "strike", "link", "code")
+
 TEXT_TYPE = "text"
 
 
@@ -78,12 +87,36 @@ class AdfRenderer(BaseRenderer):
 
 
 def handle_table(token):
+    """
+    Return a list containing ADF paragraph node to hold
+    table cell or header contents.
+
+    ADF handles tables differently from Mistletoe AST. Text
+    can only be contained inside 'paragraph' nodes.
+
+    Accepts:
+        token: the table cell or table header token to be handled
+    Returns:
+        A list containing the paragraph node
+    """
     paragraph_token = block_token.Paragraph([])
     paragraph_token.children = token.children
     return [paragraph_token]
 
 
 def handle_marks(token, node, marks, parent_list):
+    """
+    If node is a ADF 'mark node', append to the list of marks
+    and recursively step through to the next node.
+
+    The marks list will be applied a non-block token node
+
+    Accepts:
+        token: the AST token to parse
+        node: the dictionary containing ADF information
+        marks: list of mark nodes
+        parent_list: set which contains token[0] and node[1]
+    """
     marks = [] if marks is None else marks
     marks.append(node)
     return get_adf(
@@ -95,8 +128,18 @@ def handle_marks(token, node, marks, parent_list):
 
 
 def handle_children(token, node, marks, parent_list):
-    if token.__class__.__name__ == "SetextHeading":
-        get_adf(ThematicBreak("---"))
+    """
+    Handle the tokens children. Spawns new calls to `get_adf()`.
+    Also handles some other edge cases, like if the current node
+    is a blockquote or inside a list.
+
+    Accepts:
+        token: The AST token to parse
+        node: the dictionary containing ADF information
+        marks: list of mark nodes
+        parent_list: set which contains token[0] and node[1]
+    """
+
     if node["type"] == "tableCell" or node["type"] == "tableHeader":
         token.children = handle_table(token)
     for child in token.children:
@@ -146,12 +189,26 @@ def process_node(token, node, marks, parent_list):
         return handle_marks(token, node, marks, parent_list)
 
     if "header" in vars(token):
+        # ADF has seperate header and table cell nodes. We need to generate
+        # header nodes from the 'header' field.
         header_row_token = getattr(token, "header")
         for cell_token in header_row_token.children:
             cell_token.is_header = True
 
         token.children.insert(0, header_row_token)
 
+    if token.__class__.__name__ == "SetextHeading":
+        get_adf(ThematicBreak("---"))
+    if node.get("type", None) is None or (
+        node.get("type", None) == "blockquote" and blockquotes
+    ):
+        # Handle two cases:
+        # blockquotes can not be nested in ADF
+        # nodes with 'None' type should be replaced with their children
+        if len(node.get("content", [])) > 0:
+            node = node.get("content", node)[0]
+    if marks is not None and len(marks) > 0 and not isinstance(token, BlockToken):
+        node["marks"] = marks
 
 def get_adf(token, marks=None, blockquotes=False, parent_list=None):
     """
@@ -166,7 +223,7 @@ def get_adf(token, marks=None, blockquotes=False, parent_list=None):
     """
     node = {}
     node["type"] = (
-        (ADF_TYPE[token.__class__.__name__])(token, node)
+        (ADF_TYPE[token.__class__.__name__])(token)
         if callable(ADF_TYPE[token.__class__.__name__])
         else ADF_TYPE[token.__class__.__name__]
     )
@@ -178,20 +235,13 @@ def get_adf(token, marks=None, blockquotes=False, parent_list=None):
     )
 
     if node["type"] is not None and not blockquotes:
-        process_node(token, node, marks, parent_list)
+        ret = process_node(token, node, marks, parent_list)
+        if ret:
+            return ret
 
     if token.children is not None:
         handle_children(token, node, marks, parent_list)
 
-    if node.get("attrs", None) is not None:
-        if len(node["attrs"]) == 0:
-            del node["attrs"]
-    if node.get("type", None) is None or (
-        node.get("type", None) == "blockquote"
-        and blockquotes  # blockquotes can not be nested in ADF
-    ):
-        node = node["content"][0]
-    if marks is not None and len(marks) > 0 and not isinstance(token, BlockToken):
-        node["marks"] = marks
+    post_process_node(node, token, marks, blockquotes)
 
     return node
