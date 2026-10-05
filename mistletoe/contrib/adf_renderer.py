@@ -190,9 +190,6 @@ def process_node(token, node, marks, parent_list):
             node["attrs"][ADF_ATTRS[attrname]] = getattr(token, attrname)
 
     if node["type"] in MARK_VALUES:
-        if node.get("attrs", None) is not None:
-            if len(node["attrs"]) == 0:
-                del node["attrs"]
         return handle_marks(token, node, marks, parent_list)
 
     if "header" in vars(token):
