@@ -227,6 +227,35 @@ class TestAdfRenderer(BaseRendererTest):
         adf = adf_renderer.get_adf(doc)
         self.assertDictEqual(adf, expected)
 
+    def test_marks(self):
+        doc = Document(["[Test link](https://localhost)\n", "**bold**"])
+
+        expected = {
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Test link",
+                            "marks": [
+                                {
+                                    "type": "link",
+                                    "attrs": {"href": "https://localhost", "title": ""},
+                                }
+                            ],
+                        },
+                        {"type": "text", "text": "bold", "marks": [{"type": "strong"}]},
+                    ],
+                }
+            ],
+        }
+
+        adf = adf_renderer.get_adf(doc)
+        self.assertDictEqual(adf, expected)
+
     def test_rule(self):
         doc = Document(["---"])
 
