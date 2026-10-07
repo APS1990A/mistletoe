@@ -5,7 +5,7 @@ Abstract syntax tree renderer for mistletoe.
 import json
 from mistletoe import block_token
 from mistletoe.base_renderer import BaseRenderer
-from mistletoe.block_token import BlockToken, List, ListItem, ThematicBreak
+from mistletoe.block_token import BlockToken, List, ListItem, Paragraph, ThematicBreak
 
 
 def determine_list_type(token):
@@ -127,7 +127,7 @@ def handle_marks(token, node, marks, parent_list):
     )
 
 
-def handle_children(token, node, marks, parent_list):
+def handle_children(token, node, marks, blockquotes, parent_list):
     """
     Handle the tokens children. Spawns new calls to `get_adf()`.
     Also handles some other edge cases, like if the current node
@@ -143,6 +143,7 @@ def handle_children(token, node, marks, parent_list):
     if node["type"] == "tableCell" or node["type"] == "tableHeader":
         token.children = handle_table(token)
 
+    num_paragraphs = 0
     for child in token.children:
         if ADF_TYPE[child.__class__.__name__]:
             node["content"] = (
@@ -155,26 +156,45 @@ def handle_children(token, node, marks, parent_list):
                 parent_list=parent_list,
             )
             if ret["type"] is not None:
+                # if the next child is a List token, we need spacing between
+                # lists.
+                if (
+                    isinstance(child, List)
+                    and getattr(token, "loose", False)
+                    and num_paragraphs < 2
+                ):
+                    node["content"].append({"type": "paragraph", "content": []})
+                    num_paragraphs = 0
+                elif isinstance(child, Paragraph):
+                    num_paragraphs += 1
                 node["content"].append(ret)
 
-            # TODO find out way to remove or prevent the last empty paragraph from being
-            #      added to the children/content lists. Current design adds extra empty
-            #      paragraph at the end of nested loose lists.
-            if (
-                getattr(token, "loose", False)
-                and isinstance(token, ListItem)
-                and not isinstance(token.children[-1], ListItem)
-            ):
-                # For loose tables to render similar to markdown, we need to add
-                # empty paragraphs at the end of a parent_list[0] content/children
-                # Make a note that we have seen a paragraph node containing the text
-                # This might need to be supported by other block token types as well,
-                node["content"].append({"type": "paragraph", "content": []})
+            if (parent_list is not None or blockquotes) and node[
+                "type"
+            ] == "blockquote":
+                # blockquote nodes do not render inside of lists, so use its child
+                # instead.
+                if len(token.children) > 0:
+                    node = get_adf(token.children[0], marks, parent_list=parent_list)
+                else:
+                    node = None
 
-    if parent_list is not None and node["type"] == "blockquote":
-        # blockquote nodes do not render inside of lists, so use its child
-        # instead.
-        node = get_adf(token.children[0], marks, parent_list=parent_list)
+    # TODO find out way to remove or prevent the last empty paragraph from being
+    #      added to the children/content lists. Current design adds extra empty
+    #      paragraph at the end of nested loose lists.
+    if (
+        getattr(token, "loose", False)
+        and isinstance(token, ListItem)
+        and num_paragraphs < 2
+    ):
+        # For loose tables to render similar to markdown, we need to add
+        # empty paragraphs at the end of a parent_list[0] content/children
+        # Make a note that we have seen a paragraph node containing the text
+        # This might need to be supported by other block token types as well,
+        node["content"].append({"type": "paragraph", "content": []})
+        num_paragraphs = 0
+
+    return node
 
 
 def process_node(token, node, marks, parent_list):
@@ -205,15 +225,7 @@ def process_node(token, node, marks, parent_list):
         get_adf(ThematicBreak("---"))
 
 
-def post_process_node(node, token, marks, blockquotes):
-    if node.get("type", None) is None or (
-        node.get("type", None) == "blockquote" and blockquotes
-    ):
-        # Handle two cases:
-        # blockquotes can not be nested in ADF
-        # nodes with 'None' type should be replaced with their children
-        if len(node.get("content", [])) > 0:
-            node = node.get("content", node)[0]
+def post_process_node(node, token, marks):
     if marks is not None and len(marks) > 0 and not isinstance(token, BlockToken):
         node["marks"] = marks
 
@@ -248,8 +260,8 @@ def get_adf(token, marks=None, blockquotes=False, parent_list=None):
             return ret
 
     if token.children is not None:
-        handle_children(token, node, marks, parent_list)
+        node = handle_children(token, node, marks, blockquotes, parent_list)
 
-    post_process_node(node, token, marks, blockquotes)
+    post_process_node(node, token, marks)
 
     return node

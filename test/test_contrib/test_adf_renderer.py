@@ -267,9 +267,9 @@ class TestAdfRenderer(BaseRendererTest):
     def test_render__basic_blocks(self):
         pass
 
-    # @filesBasedTest
-    # def test_render__lists(self):
-    #     pass
+    @filesBasedTest
+    def test_render__lists(self):
+        pass
 
     # @filesBasedTest
     # def test_render__quotes(self):
