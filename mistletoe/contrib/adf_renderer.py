@@ -77,7 +77,15 @@ TEXT_TYPE = "text"
 class AdfRenderer(BaseRenderer):
     def render(self, token):
         """
-        Returns the string representation of the ADF.
+        Returns the string representation of the ADF (Atlassian Document Format).
+        
+        From ADF website:
+        'The Atlassian Document Format (ADF) represents rich text stored in Atlassian products.
+        For example, in Jira Cloud platform, the text in issue comments and in textarea custom fields
+        is stored as ADF.'
+
+        Atlassian Document Format (ADF) further defined here:
+        developer.atlassian.com/cloud/jira/platform/apis/document/structure/
 
         Overrides super().render. Delegates the logic to get_adf
         """
@@ -211,12 +219,13 @@ def handle_children(token, node, marks, parent_blockquotes, parent_list):
     if (
         getattr(token, "loose", False)
         and isinstance(token, ListItem)
-        and num_paragraphs < 2
+        and num_paragraphs < 2  # Markdown loose lists add two paragraphs.
+                                # If less than two are seen, add an empty paragraph
     ):
         # For loose tables to render similar to markdown, we need to add
         # empty paragraphs at the end of a parent_list[0] content/children
         # Make a note that we have seen a paragraph node containing the text
-        # This might need to be supported by other block token types as well,
+        # This might need to be supported by other block token types as well.
         node["content"].append({"type": "paragraph", "content": []})
         num_paragraphs = 0
 
