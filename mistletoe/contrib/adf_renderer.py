@@ -2,6 +2,7 @@
 Abstract syntax tree renderer for mistletoe.
 """
 
+import copy
 import json
 from mistletoe import block_token
 from mistletoe.base_renderer import BaseRenderer
@@ -104,7 +105,7 @@ def handle_table(token):
     return [paragraph_token]
 
 
-def handle_marks(token, node, marks, parent_list):
+def handle_marks(token, node, marks, parent_blockquotes, parent_list):
     """
     If node is a ADF 'mark node', append to the list of marks
     and recursively step through to the next node.
@@ -122,12 +123,41 @@ def handle_marks(token, node, marks, parent_list):
     return get_adf(
         token.children[0],
         marks,
-        blockquotes=node["type"] == "blockquote",
+        parent_blockquotes=parent_blockquotes,
         parent_list=parent_list,
     )
 
 
-def handle_children(token, node, marks, blockquotes, parent_list):
+def handle_nested_blockquotes(token, marks, parent_blockquotes, parent_list):
+    """
+    Handle nested blockquotes. It will remove the current node, and flatten its
+    children onto the parent blockquotes. ADF does not support nested blockquotes.
+
+    Accepts:
+        token: the AST token to parse
+        node: the dictionary containing ADF information
+        marks: list of mark nodes
+        parent_list: set which contains token[0] and node[1]
+
+    Returns:
+        The node to replace the current blockquote token, or None to remove it
+    """
+    if len(token.children) == 1:
+        return get_adf(token.children[0], marks, parent_list=parent_list)
+    elif len(token.children) > 1:
+        for child in token.children:
+            if ADF_TYPE[child.__class__.__name__]:
+                if parent_blockquotes[1].get("content", None) is None:
+                    parent_blockquotes[1]["content"] = []
+                parent_blockquotes[1]["content"].append(
+                    get_adf(child, marks, parent_blockquotes, parent_list)
+                )
+        return None
+    else:
+        return None
+
+
+def handle_children(token, node, marks, parent_blockquotes, parent_list):
     """
     Handle the tokens children. Spawns new calls to `get_adf()`.
     Also handles some other edge cases, like if the current node
@@ -143,19 +173,25 @@ def handle_children(token, node, marks, blockquotes, parent_list):
     if node["type"] == "tableCell" or node["type"] == "tableHeader":
         token.children = handle_table(token)
 
+    if (token.__class__.__name__ == "Quote") and (
+        parent_list is not None
+        or (parent_blockquotes and parent_blockquotes[0] != token)
+    ):
+        return handle_nested_blockquotes(token, marks, parent_blockquotes, parent_list)
+
     num_paragraphs = 0
     for child in token.children:
         if ADF_TYPE[child.__class__.__name__]:
-            node["content"] = (
-                [] if node.get("content", None) is None else node["content"]
-            )
+            if node.get("content", None) is None:
+                node["content"] = []
             ret = get_adf(
                 child,
                 marks,
-                blockquotes=node["type"] == "blockquote",
+                parent_blockquotes=parent_blockquotes,
                 parent_list=parent_list,
             )
-            if ret["type"] is not None:
+
+            if ret and ret["type"] is not None:
                 # if the next child is a List token, we need spacing between
                 # lists.
                 if (
@@ -168,16 +204,6 @@ def handle_children(token, node, marks, blockquotes, parent_list):
                 elif isinstance(child, Paragraph):
                     num_paragraphs += 1
                 node["content"].append(ret)
-
-            if (parent_list is not None or blockquotes) and node[
-                "type"
-            ] == "blockquote":
-                # blockquote nodes do not render inside of lists, so use its child
-                # instead.
-                if len(token.children) > 0:
-                    node = get_adf(token.children[0], marks, parent_list=parent_list)
-                else:
-                    node = None
 
     # TODO find out way to remove or prevent the last empty paragraph from being
     #      added to the children/content lists. Current design adds extra empty
@@ -197,7 +223,7 @@ def handle_children(token, node, marks, blockquotes, parent_list):
     return node
 
 
-def process_node(token, node, marks, parent_list):
+def process_node(token, node, marks, parent_blockquotes, parent_list):
     if node["type"] == "doc":
         node["version"] = 1
 
@@ -210,7 +236,7 @@ def process_node(token, node, marks, parent_list):
             node["attrs"][ADF_ATTRS[attrname]] = getattr(token, attrname)
 
     if node["type"] in MARK_VALUES:
-        return handle_marks(token, node, marks, parent_list)
+        return handle_marks(token, node, marks, parent_blockquotes, parent_list)
 
     if "header" in vars(token):
         # ADF has seperate header and table cell nodes. We need to generate
@@ -230,7 +256,7 @@ def post_process_node(node, token, marks):
         node["marks"] = marks
 
 
-def get_adf(token, marks=None, blockquotes=False, parent_list=None):
+def get_adf(token, marks=None, parent_blockquotes=None, parent_list=None):
     """
     Recursively unrolls token attributes into dictionaries (token.children
     into lists).
@@ -254,13 +280,19 @@ def get_adf(token, marks=None, blockquotes=False, parent_list=None):
         else parent_list
     )
 
-    if node["type"] is not None and not blockquotes:
-        ret = process_node(token, node, marks, parent_list)
+    parent_blockquotes = (
+        (token, node)
+        if token.__class__.__name__ == "Quote" and parent_blockquotes is None
+        else parent_blockquotes
+    )
+
+    if node["type"] is not None:
+        ret = process_node(token, node, marks, parent_blockquotes, parent_list)
         if ret:
             return ret
 
     if token.children is not None:
-        node = handle_children(token, node, marks, blockquotes, parent_list)
+        node = handle_children(token, node, marks, parent_blockquotes, parent_list)
 
     post_process_node(node, token, marks)
 
