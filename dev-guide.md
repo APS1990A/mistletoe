@@ -132,6 +132,8 @@ and provide a renderer for this new token.
 
 ### A new token
 
+#### Span Token
+
 GitHub wiki links are span-level tokens, meaning that they reside inline,
 and don't really look like chunky paragraphs. To write a new span-level
 token, all we need to do is make a subclass of `SpanToken`:
@@ -195,7 +197,92 @@ class GithubWiki(SpanToken):
         self.target = match_obj.group(2)
 ```
 
-There you go: a new token in 5 lines of code.
+There you go: a new span token in 5 lines of code.
+
+#### Block Token
+
+A `SpanToken` like `GithubWiki` may appear as the only element inside a `Paragraph`.
+A common scenario might be that a `SpanToken` is surrounded with other text, inside
+that same `Paragraph`.
+
+For grouping multiple lines of text, this is where `BlockToken` comes in.
+
+`Paragraph` is a `BlockToken`, and one of the more common `BlockToken` types
+you will find.
+
+Generally, a `BlockToken` will implement `__init__` in a form that depends on the
+`BlockToken` being created. We will describe that later. What is more important for
+`BlockToken` classes are the `start()` and `read()` functions.
+
+`start()` defines if a token matches the `BlockToken` provided to
+`block_tokenizer.tokenize_block()` based on matchers that you defined.
+It matters on the order that tokens are included in the list. Tokens 
+listed higher have more precedence and might be matched first before your token.
+
+`start()` is not defined in every class, some `BlockToken` objects are not
+meant to be found through parsing. For example, `Document` is normally initalized
+by providing it as the top level token. Other tokens might be found on some conditions
+based on other tokens found in the input. Depending on your implementation, you may
+or may not want to include this.
+
+```python
+from mistletoe.block_token import BlockToken
+import re
+
+class MyCustomBlockToken(BlockToken):
+  pattern = re.compile([r"^(\[)my_regex(\])"])
+  def __init__(self):
+    super().__init__()
+
+  @classmethod 
+  def start(cls, line): 
+    """
+    Some tokens implement it as a classmethod, others as a static method.
+    It depends on your needs. In this case it should be a `@classmethod`
+    because we are using the class variable `pattern`.
+    """
+    return cls.pattern.match(line)    
+```
+
+`read()` parses the actual text from an iterator and fills the data necessary for 
+your `BlockToken` with that information. This information that is returned from `read()` 
+is passed into the `__init__()` function when creating an object of your class,
+which occurs during `block_tokenizer.make_tokens()`.
+For example, `ListItem` collects information such as the indentation of each
+item, what is the substring which defines the beginning of the line, and the rest
+of the text content.
+
+
+```python
+from mistletoe.block_token import BlockToken
+import re
+import mistletoe.block_tokenizer as tokenizer
+
+class MyCustomBlockToken(BlockToken):
+  pattern = re.compile(r"^(\[)my_regex(\])")
+  def __init__(self, parse_buffer, brackets):
+    self.brackets = brackets
+    self.children = tokenizer.make_tokens(parse_buffer)
+
+  @classmethod 
+  def start(cls, line): 
+    return cls.pattern.match(line)
+  
+  @classmethod
+  def read(cls, lines):
+    line_buffer = []
+    line = next(lines)
+    matches = cls.pattern.match(line)
+    brackets = (pattern.match(1) and pattern.match(2)) is not None
+    content = line[matches.end(0):]
+    line_buffer.append(content)
+    return (tokenizer.tokenize_block(line_buffer, _token_types, lines.line_number(), depth=lines.depth + 1))
+    
+```
+
+For classes like `Paragraph`, whose children are only `SpanToken`, they are called **leaf tokens**.
+For `BlockToken.List` class, its content are `ListItem` objects. This would make `BlockToken.List` **container tokens**
+Regardless of what kind of `BlockToken` the child class it, it gets placed in a `BlockToken` object's `children` field.
 
 ### Side note about precedence
 
